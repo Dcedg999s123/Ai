@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mistral Instruct Chat</title>
+    <style>
+        :root {
+            --mistral-purple: #7e3af2;
+            --mistral-dark: #0f172a;
+            --mistral-light: #f1f5f9;
+            --mistral-gray: #64748b;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+        
+        body {
+            background-color: var(--mistral-dark);
+            color: var(--mistral-light);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .header {
+            background-color: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(100, 116, 139, 0.3);
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+        }
+        
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        
+        .logo-icon {
+            background-color: var(--mistral-purple);
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        .model-info {
+            background-color: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            border-radius: 12px;
+            padding: 8px 16px;
+            font-size: 0.875rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .model-status {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #10b981;
+        }
+        
+        .history-container {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            width: 260px;
+            background-color: rgba(15, 23, 42, 0.95);
+            border-right: 1px solid rgba(100, 116, 139, 0.3);
+            height: calc(100vh - 64px);
+            overflow-y: auto;
+            padding: 16px;
+            z-index: 100;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease;
+            backdrop-filter: blur(10px);
+        }
+        
+        .history-container.active {
+            transform: translateX(0);
+        }
+        
+        .history-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(100, 116, 139, 0.3);
+        }
+        
+        .history-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        
+        .close-history {
+            background: none;
+            border: none;
+            color: var(--mistral-gray);
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+        
+        .history-item {
+            padding: 12px;
+            border-radius: 12px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .history-item:hover {
+            background-color: rgba(100, 116, 139, 0.2);
+        }
+        
+        .history-item.active {
+            background-color: rgba(126, 58, 242, 0.3);
+            border-left: 3px solid var(--mistral-purple);
+        }
+        
+        .new-chat-button {
+            background-color: var(--mistral-purple);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            padding: 10px 16px;
+            margin-top: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            justify-content: center;
+        }
+        
+        .new-chat-button:hover {
+            background-color: #6c2bd9;
+        }
+        
+        .history-button {
+            background: none;
+            border: none;
+            color: var(--mistral-gray);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+        }
+        
+        .message {
+            padding: 20px;
+            border-radius: 16px;
+            line-height: 1.6;
+            position: relative;
+        }
+        
+        .user-message {
+            background-color: rgba(126, 58, 242, 0.15);
+            border: 1px solid rgba(126, 58, 242, 0.3);
+            align-self: flex-end;
+            margin-left: 60px;
+        }
+        
+        .assistant-message {
+            background-color: rgba(15, 23, 42, 0.5);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            align-self: flex-start;
+            margin-right: 60px;
+        }
+        
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 12px;
+            font-weight: 500;
+        }
+        
+        .avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        .user-avatar {
+            background-color: var(--mistral-purple);
+            color: white;
+        }
+        
+        .assistant-avatar {
+            background-color: rgba(100, 116, 139, 0.3);
+            color: var(--mistral-purple);
+        }
+        
+        .input-container {
+            padding: 16px 24px 24px;
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+        }
+        
+        .input-box {
+            display: flex;
+            gap: 12px;
+            position: relative;
+        }
+        
+        textarea {
+            flex: 1;
+            background-color: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(100, 116, 139, 0.3);
+            border-radius: 16px;
+            padding: 16px 60px 16px 16px;
+            color: var(--mistral-light);
+            font-size: 1rem;
+            resize: none;
+            height: 100px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        
+        textarea:focus {
+            border-color: var(--mistral-purple);
+        }
+        
+        .send-button {
+            position: absolute;
+            right: 16px;
+            bottom: 16px;
+            background-color: var(--mistral-purple);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            width: 40px;
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .send-button:hover {
+            background-color: #6c2bd9;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 16px;
+            font-size: 0.875rem;
+            color: var(--mistral-gray);
+            border-top: 1px solid rgba(100, 116, 139, 0.3);
+        }
+        
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            color: var(--mistral-purple);
+            margin-top: 8px;
+        }
+        
+        .dot {
+            width: 8px;
+            height: 8px;
+            background-color: var(--mistral-purple);
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+        
+        .dot:nth-child(2) {
+            animation-delay: 0.5s;
+        }
+        
+        .dot:nth-child(3) {
+            animation-delay: 1s;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+        }
+        
+        .code-block {
+            background-color: rgba(15, 23, 42, 0.8);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 12px 0;
+            overflow-x: auto;
+            font-family: 'Fira Code', monospace;
+            font-size: 0.9rem;
+        }
+        
+        .code-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            color: var(--mistral-gray);
+            font-size: 0.8rem;
+        }
+        
+        .copy-button {
+            background: none;
+            border: none;
+            color: var(--mistral-purple);
+            cursor: pointer;
+        }
+        
+        @media (max-width: 768px) {
+            .chat-container, .input-container {
+                padding: 16px;
+            }
+            
+            .user-message {
+                margin-left: 20px;
+            }
+            
+            .assistant-message {
+                margin-right: 20px;
+            }
+            
+            .history-container {
+                width: 80%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">
+            <button class="history-button" id="historyButton">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="3" y1="12" x2="21" y2="12"></line>
+                    <line x1="3" y1="6" x2="21" y2="6"></line>
+                    <line x1="3" y1="18" x2="21" y2="18"></line>
+                </svg>
+                История
+            </button>
+            <div class="logo-icon">MI</div>
+            <span>Mistral Instruct</span>
+        </div>
+        <div class="model-info">
+            <div class="model-status"></div>
+            <span>Ollama: mistral:instruct</span>
+        </div>
+    </div>
+    
+    <div class="history-container" id="historyContainer">
+        <div class="history-header">
+            <div class="history-title">История диалогов</div>
+            <button class="close-history" id="closeHistory">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+            </button>
+        </div>
+        <div id="historyList"></div>
+        <button class="new-chat-button" id="newChatButton">
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+            Новый диалог
+        </button>
+    </div>
+    
+    <div class="chat-container" id="chatContainer">
+        <div class="message assistant-message">
+            <div class="message-header">
+                <div class="avatar assistant-avatar">AI</div>
+                <span>Mistral Instruct</span>
+            </div>
+            <p>Привет! Я Mistral Instruct - мощная модель от Mistral AI, основанная на архитектуре Transformer. Готова помочь с различными задачами, включая программирование, анализ текста и генерацию идей.</p>
+            <p>Чтобы начать работу:</p>
+            <div class="code-block">
+                <div class="code-header">
+                    <span>Терминал</span>
+                    <button class="copy-button">Копировать</button>
+                </div>
+                <pre>ollama run mistral:instruct</pre>
+            </div>
+            <p>История диалогов сохраняется автоматически в вашем браузере. Для просмотра истории нажмите кнопку "История" в левом верхнем углу.</p>
+        </div>
+    </div>
+    
+    <div class="input-container">
+        <div class="input-box">
+            <textarea id="messageInput" placeholder="Напишите сообщение..."></textarea>
+            <button class="send-button" id="sendButton">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="22" y1="2" x2="11" y2="13"></line>
+                    <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+            </button>
+        </div>
+    </div>
+    
+    <div class="footer">
+        Mistral Instruct · Модель с открытыми весами · API: 127.0.0.1:11434
+    </div>
+
+    <script>
+        // Конфигурация API
+        const OLLAMA_API_URL = "http://127.0.0.1:11434/api/generate";
+        const MODEL_NAME = "mistral:instruct";
+        
+        // Элементы интерфейса
+        const chatContainer = document.getElementById('chatContainer');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const historyButton = document.getElementById('historyButton');
+        const closeHistory = document.getElementById('closeHistory');
+        const historyContainer = document.getElementById('historyContainer');
+        const historyList = document.getElementById('historyList');
+        const newChatButton = document.getElementById('newChatButton');
+        
+        // Состояние приложения
+        let currentChatId = Date.now().toString();
+        let chats = JSON.parse(localStorage.getItem('mistralChats') || '{}');
+        let chatHistory = [];
+        
+        // Инициализация при загрузке
+        function init() {
+            // Загрузка истории
+            loadChatHistory();
+            
+            // Загрузка текущего чата
+            if (chats[currentChatId]) {
+                chatHistory = chats[currentChatId].messages;
+                renderChatHistory();
+            } else {
+                // Сохраняем приветственное сообщение
+                saveWelcomeMessage();
+            }
+            
+            // Авто-фокус на поле ввода
+            messageInput.focus();
+        }
+        
+        // Сохранение приветственного сообщения
+        function saveWelcomeMessage() {
+            const welcomeMessage = {
+                sender: 'assistant',
+                text: `Привет! Я Mistral Instruct - мощная модель от Mistral AI, основанная на архитектуре Transformer. Готова помочь с различными задачами, включая программирование, анализ текста и генерацию идей.<br><br>Чтобы начать работу:<br><div class="code-block"><div class="code-header"><span>Терминал</span><button class="copy-button">Копировать</button></div><pre>ollama run mistral:instruct</pre></div><br>История диалогов сохраняется автоматически в вашем браузере. Для просмотра истории нажмите кнопку "История" в левом верхнем углу.`,
+                timestamp: Date.now()
+            };
+            
+            chatHistory.push(welcomeMessage);
+            saveChat();
+        }
+        
+        // Загрузка истории диалогов
+        function loadChatHistory() {
+            historyList.innerHTML = '';
+            
+            // Сортировка диалогов по времени (новые сверху)
+            const sortedChats = Object.entries(chats).sort((a, b) => {
+                return b[1].lastModified - a[1].lastModified;
+            });
+            
+            sortedChats.forEach(([id, chat]) => {
+                const historyItem = document.createElement('div');
+                historyItem.className = `history-item ${id === currentChatId ? 'active' : ''}`;
+                historyItem.dataset.id = id;
+                
+                // Первое сообщение как заголовок
+                const firstMessage = chat.messages[0]?.text || 'Новый диалог';
+                const title = extractTextFromMessage(firstMessage).substring(0, 40);
+                const date = new Date(chat.lastModified).toLocaleDateString();
+                
+                historyItem.innerHTML = 
+                    `<div>${title || 'Без названия'}</div>
+                    <div style="font-size: 0.7rem; color: var(--mistral-gray); margin-top: 4px;">${date}</div>`;
+                
+                historyItem.addEventListener('click', () => {
+                    loadChat(id);
+                    historyContainer.classList.remove('active');
+                });
+                
+                historyList.appendChild(historyItem);
+            });
+        }
+        
+        // Извлечение текста из HTML сообщения
+        function extractTextFromMessage(html) {
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            return div.textContent || div.innerText || "";
+        }
+        
+        // Загрузка конкретного чата
+        function loadChat(chatId) {
+            currentChatId = chatId;
+            chatHistory = chats[chatId].messages;
+            
+            // Обновляем активный элемент в истории
+            document.querySelectorAll('.history-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.id === chatId);
+            });
+            
+            renderChatHistory();
+        }
+        
+        // Создание нового чата
+        function createNewChat() {
+            currentChatId = Date.now().toString();
+            chatHistory = [];
+            saveWelcomeMessage();
+            loadChatHistory();
+            historyContainer.classList.remove('active');
+        }
+        
+        // Сохранение чата в localStorage
+        function saveChat() {
+            chats[currentChatId] = {
+                messages: chatHistory,
+                lastModified: Date.now()
+            };
+            
+            localStorage.setItem('mistralChats', JSON.stringify(chats));
+            loadChatHistory();
+        }
+        
+        // Отображение истории чата
+        function renderChatHistory() {
+            chatContainer.innerHTML = '';
+            
+            chatHistory.forEach(message => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${message.sender}-message`;
+                
+                messageDiv.innerHTML = 
+                    `<div class="message-header">
+                        <div class="avatar ${message.sender}-avatar">${message.sender === 'user' ? 'Вы' : 'AI'}</div>
+                        <span>${message.sender === 'user' ? 'Вы' : 'Mistral Instruct'}</span>
+                    </div>
+                    <div>${message.text}</div>`;
+                
+                chatContainer.appendChild(messageDiv);
+            });
+            
+            // Прокрутка вниз
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        // Отправка сообщения с использованием Ollama API
+        async function sendMessage() {
+            const messageText = messageInput.value.trim();
+            if (!messageText) return;
+            
+            // Сохраняем сообщение пользователя
+            const userMessage = {
+                sender: 'user',
+                text: messageText.replace(/\n/g, '<br>'),
+                timestamp: Date.now()
+            };
+            
+            chatHistory.push(userMessage);
+            renderChatHistory();
+            saveChat();
+            
+            messageInput.value = '';
+            
+            // Показываем индикатор набора текста
+            const typingIndicator = document.createElement('div');
+            typingIndicator.className = 'typing-indicator';
+            typingIndicator.innerHTML = 
+                `<div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <span>Mistral печатает...</span>`;
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'message assistant-message';
+            messageDiv.innerHTML = 
+                `<div class="message-header">
+                    <div class="avatar assistant-avatar">AI</div>
+                    <span>Mistral Instruct</span>
+                </div>`;
+            messageDiv.appendChild(typingIndicator);
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            
+            // Создаем контейнер для ответа
+            const responseDiv = document.createElement('div');
+            messageDiv.appendChild(responseDiv);
+            
+            try {
+                // Отправка запроса к Ollama API
+                const response = await fetch(OLLAMA_API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        model: MODEL_NAME,
+                        prompt: messageText,
+                        stream: true
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Ошибка API: ${response.status} ${response.statusText}`);
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let fullResponse = '';
+                
+                // Убираем индикатор набора
+                typingIndicator.remove();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    const chunk = decoder.decode(value, { stream: true });
+                    const chunks = chunk.split('\n').filter(Boolean);
+                    
+                    for (const jsonStr of chunks) {
+                        try {
+                            const data = JSON.parse(jsonStr);
+                            fullResponse += data.response;
+                            
+                            // Обновляем ответ в реальном времени
+                            responseDiv.innerHTML = formatResponse(fullResponse);
+                            chatContainer.scrollTop = chatContainer.scrollHeight;
+                        } catch (e) {
+                            console.error('Ошибка парсинга JSON:', e);
+                        }
+                    }
+                }
+                
+                // Сохраняем ответ ассистента
+                const assistantMessage = {
+                    sender: 'assistant',
+                    text: formatResponse(fullResponse),
+                    timestamp: Date.now()
+                };
+                
+                chatHistory.push(assistantMessage);
+                saveChat();
+                
+            } catch (error) {
+                // Обработка ошибок
+                typingIndicator.remove();
+                const errorMessage = `Ошибка: ${error.message}. Проверьте:<br>1. Запущен ли Ollama (ollama serve)<br>2. Загружена ли модель (ollama pull mistral:instruct)<br>3. Нет ли блокировки брандмауэром порта 11434`;
+                responseDiv.innerHTML = errorMessage;
+                
+                chatHistory.push({
+                    sender: 'assistant',
+                    text: errorMessage,
+                    timestamp: Date.now()
+                });
+                saveChat();
+            }
+        }
+        
+        // Форматирование ответа (с подсветкой кода)
+        function formatResponse(response) {
+            // Простое форматирование кода
+            return response
+                .replace(/(```[\w]*\n?[\s\S]*?\n?```)/g, (match) => {
+                    const code = match.replace(/```[\w]*\n?|\n?```/g, '');
+                    return `<div class="code-block">
+                        <div class="code-header">
+                            <span>Код</span>
+                            <button class="copy-button">Копировать</button>
+                        </div>
+                        <pre>${code}</pre>
+                    </div>`;
+                })
+                .replace(/\n/g, '<br>');
+        }
+        
+        // Инициализация обработчиков событий
+        function setupEventListeners() {
+            // Отправка сообщения по Enter (без Shift)
+            messageInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            
+            // Отправка сообщения по клику
+            sendButton.addEventListener('click', sendMessage);
+            
+            // Открытие/закрытие истории
+            historyButton.addEventListener('click', () => {
+                historyContainer.classList.toggle('active');
+            });
+            
+            closeHistory.addEventListener('click', () => {
+                historyContainer.classList.remove('active');
+            });
+            
+            // Новый диалог
+            newChatButton.addEventListener('click', createNewChat);
+            
+            // Обработка кнопок копирования кода
+            document.addEventListener('click', (e) => {
+                if (e.target.classList.contains('copy-button')) {
+                    const codeBlock = e.target.closest('.code-block').querySelector('pre');
+                    navigator.clipboard.writeText(codeBlock.textContent)
+                        .then(() => {
+                            const originalText = e.target.textContent;
+                            e.target.textContent = 'Скопировано!';
+                            setTimeout(() => {
+                                e.target.textContent = originalText;
+                            }, 2000);
+                        });
+                }
+            });
+        }
+        
+        // Запуск приложения
+        function startApp() {
+            init();
+            setupEventListeners();
+        }
+        
+        // Запускаем приложение при загрузке
+        window.addEventListener('DOMContentLoaded', startApp);
+    </script>
+</body>
+</html>
